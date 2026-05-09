@@ -99,7 +99,6 @@ def Statistics():
     plt.show()
 
 def Inquire(switch):
-    
     if csv_file.empty:
         console.print("[bold red][ERROR][/bold red] 目前無資料可搜尋。")
         return
@@ -109,21 +108,19 @@ def Inquire(switch):
     
     if switch == 1:
         console.print("\n[bold cyan]─── 單一搜尋模式 ───[/bold cyan]")
-    
         for i, col in enumerate(columns):
-            console.print(f"[bold yellow]({i+1})[/bold yellow] {col}", end="  ")
-    
+            console.print(f"[bold yellow]{i+1}.[/bold yellow] {col}", end="  ")
+        
         idx = user_input("請選擇搜尋欄位序號", range(1, len(columns) + 1))
         target_col = columns[idx - 1]
-        keyword = Prompt.ask(f"請輸入 [bold green][{target_col}][/bold green] 的關鍵字").strip()
-    
+        keyword = Prompt.ask(f"請輸入 [bold green]{target_col}[/bold green] 的關鍵字").strip()
         if keyword: filters[target_col] = keyword
     
     else:
         console.print("\n[bold cyan]─── 多重過濾模式 ───[/bold cyan] (直接按 Enter 跳過)")
-    
+        
         for col in columns:
-            val = Prompt.ask(f"-> [[{col}]] 關鍵字", default="").strip()
+            val = Prompt.ask(f"-> {col} 欄位搜尋關鍵字", default="").strip()
             if val: filters[col] = val
 
     if not filters:
