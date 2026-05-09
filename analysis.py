@@ -14,6 +14,10 @@ def init():
     global CONFIG, AREA_DATA, csv_file
     
     print("[INFO] 正在初始化系統資源...")
+    
+    if not os.path.exists(CONFIG_PATH):
+        print(f"[ERROR] 找不到設定檔: {CONFIG_PATH}")
+        return
         
     with open(CONFIG_PATH, "r", encoding = "utf-8") as file:
         CONFIG = json.load(file)
@@ -21,28 +25,32 @@ def init():
     AREA_DATA = CONFIG.get("area_data", {})
     data_path = CONFIG["settings"]["data_path"]
     
-    csv_file = pd.read_csv(data_path, encoding = "utf-8")
-    print(f"[SUCCESS] 系統初始化完成，已載入: {data_path}")
+    if os.path.exists(data_path):
+        csv_file = pd.read_csv(data_path, encoding = "utf-8")
+        print(f"[SUCCESS] 系統初始化完成，已載入: {data_path}")
+    else:
+        print(f"[ERROR] 找不到資料檔案: {data_path}")
 
 def user_input(prompt, valid_options = None, input_type = int):
-    
     while True:
-            
         try:
-            user_input = input_type(input(f"\n{prompt}"))
+            raw_input = input(f"\n{prompt}")
+            user_val = input_type(raw_input)
             
-            if valid_options and user_input not in valid_options:
+            if valid_options and user_val not in valid_options:
                 print(f"[ERROR] 請輸入範圍內的數字: {list(valid_options)}")
                 continue
             
-            return user_input
-        
+            return user_val
         except ValueError:
             print("[ERROR] 格式錯誤，請輸入數字。")
 
 # 畫圖
 def Statistics():
-    
+    if csv_file.empty:
+        print("[ERROR] 無資料可統計。")
+        return
+
     print("[WAIT] 正在計算各縣市診所配發數量...")
     target_cities = list(AREA_DATA.keys())
 
@@ -53,10 +61,11 @@ def Statistics():
     
     stats_df = pd.DataFrame(summary)
 
-    plt.rcParams['font.sans-serif'] = [CONFIG["settings"]["font_name"], 'sans-serif']
+    font_name = CONFIG["settings"]["font_name"]
+    plt.rcParams['font.sans-serif'] = [font_name, 'sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
     
-    sns.set_theme(style = "whitegrid", font = CONFIG["settings"]["font_name"])
+    sns.set_theme(style = "whitegrid", font = font_name)
     plt.figure(figsize = (14, 7))
     chart = sns.barplot(x = "City", y = "Count", data = stats_df, palette = "magma")
     
@@ -77,57 +86,37 @@ def Statistics():
 
 # 搜尋
 def Inquire(switch):
-    
-    columns = ["City", "Town", "Name", "Address", "Phone", "Long", "Lat"]
+    if csv_file.empty:
+        print("[ERROR] 目前無資料可搜尋。")
+        return
+
+    columns = CONFIG["settings"]["search_columns"]
     filters = {}
     
     if switch == 1:
-        
         print("\n[可搜尋欄位]: " + ", ".join([f"({i+1}){col}" for i, col in enumerate(columns)]))
-        
-        idx = user_input("請選擇搜尋欄位序號: ", range(1, 8))
+        idx = user_input("請選擇搜尋欄位序號: ", range(1, len(columns) + 1))
         target_col = columns[idx - 1]
         keyword = input(f"請輸入 [{target_col}] 的關鍵字: ").strip()
         
         if keyword: 
             filters[target_col] = keyword
-    
     else:
-    
         print("\n[INFO] 請逐一輸入過濾條件 (直接按 Enter 跳過)")
-    
         for col in columns:
             val = input(f"-> [{col}] 關鍵字: ").strip()
             if val: 
                 filters[col] = val
 
     if not filters:
-    
         print("[INFO] 未輸入關鍵字，取消搜尋。")
         return
 
     print(f"[WAIT] 正在篩選資料...")
     
-    condition1 = pd.Series(dtype = bool)
-    condition2 = pd.Series(dtype = bool)
-    condition3 = pd.Series(dtype = bool)
-
+    results = csv_file.copy()
     for col, key in filters.items():
-        if len(condition1) == 0:
-            condition1 = csv_file[col].str.contains(key, na = False)
-        else:
-            condition2 = csv_file[col].str.contains(key, na = False)
-            # 交集運算
-            condition3 = condition1 & condition2
-            condition1 = condition3
-            
-            # 刪除容器
-            del(condition2)
-            del(condition3)
-            condition2 = pd.Series(dtype=bool)
-            condition3 = pd.Series(dtype=bool)
-        
-    results = csv_file[condition1]
+        results = results[results[col].str.contains(key, na = False)]
     
     if not results.empty:
         print(f"[SUCCESS] 找到 {len(results)} 筆結果。")
@@ -138,22 +127,18 @@ def Inquire(switch):
         print("[INFO] 搜尋結束，查無符合結果。")
 
 def main():
-    
     init()
 
     while True:
-        
         print("\n" + "="*35 + "\n   台灣診所資料分析系統 v2.0-beta\n" + "="*35)
         print("(1) 顯示統計圖表\n(2) 搜尋診所資料\n(3) 退出程式")
         mode = user_input("請選擇模式: ", [1, 2, 3])
         
         if mode == 1: 
             Statistics()
-            
         elif mode == 2:
             sub = user_input("(1)單一搜尋 (2)多重搜尋: ", [1, 2])
             Inquire(sub)
-        
         elif mode == 3: 
             break
 
