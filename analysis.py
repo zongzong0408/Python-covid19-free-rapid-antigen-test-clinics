@@ -4,6 +4,13 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.prompt import Prompt, IntPrompt
+from rich import print as rprint
+
+console = Console()
 
 CONFIG_PATH = "./config.json"
 CONFIG      = {}
@@ -11,12 +18,13 @@ AREA_DATA   = {}
 csv_file    = pd.DataFrame()
 
 def init():
+    
     global CONFIG, AREA_DATA, csv_file
     
-    print("[INFO] 正在初始化系統資源...")
+    console.print("[bold blue][INFO][/bold blue] 正在初始化系統資源...", style="dim")
     
     if not os.path.exists(CONFIG_PATH):
-        print(f"[ERROR] 找不到設定檔: {CONFIG_PATH}")
+        console.print(f"[bold red][ERROR][/bold red] 找不到設定檔: {CONFIG_PATH}")
         return
         
     with open(CONFIG_PATH, "r", encoding = "utf-8") as file:
@@ -26,54 +34,53 @@ def init():
     data_path = CONFIG["settings"]["data_path"]
     
     if os.path.exists(data_path):
-        # 載入資料
         csv_file = pd.read_csv(data_path, encoding = "utf-8")
-        print(f"[SUCCESS] 系統初始化完成，已載入: {data_path}")
+        console.print(f"[bold green][SUCCESS][/bold green] 系統初始化完成，已載入: [underline]{data_path}[/underline]")
     else:
-        print(f"[ERROR] 找不到資料檔案: {data_path}")
+        console.print(f"[bold red][ERROR][/bold red] 找不到資料檔案: {data_path}")
 
 def user_input(prompt, valid_options = None, input_type = int):
+    
     while True:
         try:
-            raw_input = input(f"\n{prompt}")
-            user_val = input_type(raw_input)
+            if input_type == int:
+                user_val = IntPrompt.ask(f"\n{prompt}")
+            else:
+                user_val = Prompt.ask(f"\n{prompt}")
             
             if valid_options and user_val not in valid_options:
-                print(f"[ERROR] 請輸入範圍內的數字: {list(valid_options)}")
+                console.print(f"[bold yellow][警告][/bold yellow] 請輸入範圍內的選項: {list(valid_options)}")
                 continue
-            
             return user_val
-        except ValueError:
-            print("[ERROR] 格式錯誤，請輸入數字。")
+    
+        except Exception:
+            console.print("[bold red][錯誤][/bold red] 格式錯誤，請重新輸入。")
 
-# 使用向量化運算 (Vectorization)
 def Statistics():
+    
     if csv_file.empty:
-        print("[ERROR] 無資料可統計。")
+        console.print("[bold red][ERROR][/bold red] 無資料可統計。")
         return
 
-    print("[WAIT] 正在計算各縣市診所配發數量...")
-    target_cities = list(AREA_DATA.keys())
+    with console.status("[bold green]正在執行向量化運算..."):
+        target_cities = list(AREA_DATA.keys())
+        if not target_cities:
+            console.print("[bold red]錯誤：config.json 中沒有定義縣市資料。[/bold red]")
+            return
+            
+        city_pattern = "|".join(target_cities)
 
-    # 舊版：使用 for 迴圈逐一篩選各縣市，效率較低
-    # 新版：利用 Regex 一次性提取所有匹配的城市名稱並進行計數
-    city_pattern = "|".join(target_cities)  # e.g. "臺北市|新北市|..."
-    
-    # 向量化提取：從 City 欄位提取出符合 target_cities 的內容，並統計次數
-    # .str.extract 可以直接利用正則引擎在 C 語言底層運作
-    extracted_counts = csv_file["City"].str.extract(f"({city_pattern})")[0].value_counts()
-    
-    # 使用 reindex 確保所有縣市都出現（即使數量為 0），並轉回 DataFrame
-    stats_df = extracted_counts.reindex(target_cities, fill_value=0).reset_index()
-    stats_df.columns = ["City", "Count"]
+        extracted_counts = csv_file["City"].astype(str).str.extract(f"({city_pattern})")[0].value_counts()
+        stats_df = extracted_counts.reindex(target_cities, fill_value=0).reset_index()
+        stats_df.columns = ["City", "Count"]
 
-    # 繪圖邏輯維持不變
     font_name = CONFIG["settings"]["font_name"]
-    plt.rcParams['font.sans-serif'] = [font_name, 'sans-serif']
+    plt.rcParams['font.sans-serif'] = [font_name, 'Arial Unicode MS', 'sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
     
     sns.set_theme(style = "whitegrid", font = font_name)
     plt.figure(figsize = (14, 7))
+    
     chart = sns.barplot(x = "City", y = "Count", data = stats_df, palette = "magma")
     
     for p in chart.patches:
@@ -88,69 +95,90 @@ def Statistics():
     
     output_path = CONFIG["settings"]["output_fig"]
     plt.savefig(output_path, dpi=300)
-    print(f"[SUCCESS] 統計圖表已儲存至: {output_path}")
+    console.print(f"[bold green][SUCCESS][/bold green] 統計圖表已儲存至: [cyan]{output_path}[/cyan]")
     plt.show()
 
-# 搜尋優化：保持鍊式過濾 (Chained Filtering)
 def Inquire(switch):
+    
     if csv_file.empty:
-        print("[ERROR] 目前無資料可搜尋。")
+        console.print("[bold red][ERROR][/bold red] 目前無資料可搜尋。")
         return
 
     columns = CONFIG["settings"]["search_columns"]
     filters = {}
     
     if switch == 1:
-        print("\n[可搜尋欄位]: " + ", ".join([f"({i+1}){col}" for i, col in enumerate(columns)]))
-        idx = user_input("請選擇搜尋欄位序號: ", range(1, len(columns) + 1))
+        console.print("\n[bold cyan]─── 單一搜尋模式 ───[/bold cyan]")
+    
+        for i, col in enumerate(columns):
+            console.print(f"[bold yellow]({i+1})[/bold yellow] {col}", end="  ")
+    
+        idx = user_input("請選擇搜尋欄位序號", range(1, len(columns) + 1))
         target_col = columns[idx - 1]
-        keyword = input(f"請輸入 [{target_col}] 的關鍵字: ").strip()
-        
-        if keyword: 
-            filters[target_col] = keyword
+        keyword = Prompt.ask(f"請輸入 [bold green][{target_col}][/bold green] 的關鍵字").strip()
+    
+        if keyword: filters[target_col] = keyword
+    
     else:
-        print("\n[INFO] 請逐一輸入過濾條件 (直接按 Enter 跳過)")
+        console.print("\n[bold cyan]─── 多重過濾模式 ───[/bold cyan] (直接按 Enter 跳過)")
+    
         for col in columns:
-            val = input(f"-> [{col}] 關鍵字: ").strip()
-            if val: 
-                filters[col] = val
+            val = Prompt.ask(f"-> [[{col}]] 關鍵字", default="").strip()
+            if val: filters[col] = val
 
     if not filters:
-        print("[INFO] 未輸入關鍵字，取消搜尋。")
+        console.print("[dim]未輸入關鍵字，取消搜尋。[/dim]")
         return
 
-    print(f"[WAIT] 正在篩選資料...")
+    with console.status("[bold blue]正在篩選資料..."):
+        results = csv_file.copy()
     
-    # 向量化過濾：Pandas 的布林索引本身就是向量化操作
-    results = csv_file.copy()
-    for col, key in filters.items():
-        results = results[results[col].str.contains(key, na = False)]
+        for col, key in filters.items():
+            results = results[results[col].astype(str).str.contains(key, na = False)]
     
     if not results.empty:
-        print(f"[SUCCESS] 找到 {len(results)} 筆結果。")
-        print("-" * 30)
-        print(results.head(15)) 
-        print("-" * 30)
+        table = Table(title=f"\n[bold green]搜尋結果 (共 {len(results)} 筆)[/bold green]", header_style="bold magenta")
+    
+        for col in columns:
+            table.add_column(col)
+
+        for _, row in results.head(15).iterrows():
+            table.add_row(*(str(row[c]) for c in columns))
+        
+        console.print(table)
+        if len(results) > 15:
+            console.print("[dim]* 僅顯示前 15 筆結果...[/dim]")
     else:
-        print("[INFO] 搜尋結束，查無符合結果。")
+        console.print("[bold yellow]查無符合結果。[/bold yellow]")
 
 def main():
+    
     init()
-
+    
     while True:
-        print("\n" + "="*35 + "\n   台灣診所資料分析系統 v2.0-beta\n" + "="*35)
-        print("(1) 顯示統計圖表\n(2) 搜尋診所資料\n(3) 退出程式")
-        mode = user_input("請選擇模式: ", [1, 2, 3])
-        
+    
+        console.print("\n")
+        console.print(Panel.fit(
+            "[bold cyan]台灣公費快篩配發診所分析工具 v2[/bold cyan]\n[dim]說明[/dim]",
+            border_style="bright_blue"
+        ))
+    
+        rprint("[bold yellow](1)[/bold yellow] 顯示統計圖表")
+        rprint("[bold yellow](2)[/bold yellow] 搜尋診所資料")
+        rprint("[bold yellow](3)[/bold yellow] [red]退出程式[/red]")
+    
+        mode = user_input("請選擇模式", [1, 2, 3])
+    
         if mode == 1: 
             Statistics()
+        
         elif mode == 2:
-            sub = user_input("(1)單一搜尋 (2)多重搜尋: ", [1, 2])
+            sub = user_input("(1)單一搜尋 (2)多重搜尋", [1, 2])
             Inquire(sub)
-        elif mode == 3: 
-            break
-
-    print("\n[INFO] 程式正常結束，感謝使用！")
+        
+        elif mode == 3: break
+    
+    console.print("\n[bold green][INFO][/bold green] 程式正常結束，感謝使用！")
 
 if __name__ == "__main__":
     main()
