@@ -26,6 +26,7 @@ def init():
     data_path = CONFIG["settings"]["data_path"]
     
     if os.path.exists(data_path):
+        # 載入資料
         csv_file = pd.read_csv(data_path, encoding = "utf-8")
         print(f"[SUCCESS] 系統初始化完成，已載入: {data_path}")
     else:
@@ -45,7 +46,7 @@ def user_input(prompt, valid_options = None, input_type = int):
         except ValueError:
             print("[ERROR] 格式錯誤，請輸入數字。")
 
-# 畫圖
+# 使用向量化運算 (Vectorization)
 def Statistics():
     if csv_file.empty:
         print("[ERROR] 無資料可統計。")
@@ -54,13 +55,19 @@ def Statistics():
     print("[WAIT] 正在計算各縣市診所配發數量...")
     target_cities = list(AREA_DATA.keys())
 
-    summary = []
-    for city in target_cities:
-        count = csv_file[csv_file["City"].str.contains(city, na=False)].shape[0]
-        summary.append({"City": city, "Count": count})
+    # 舊版：使用 for 迴圈逐一篩選各縣市，效率較低
+    # 新版：利用 Regex 一次性提取所有匹配的城市名稱並進行計數
+    city_pattern = "|".join(target_cities)  # e.g. "臺北市|新北市|..."
     
-    stats_df = pd.DataFrame(summary)
+    # 向量化提取：從 City 欄位提取出符合 target_cities 的內容，並統計次數
+    # .str.extract 可以直接利用正則引擎在 C 語言底層運作
+    extracted_counts = csv_file["City"].str.extract(f"({city_pattern})")[0].value_counts()
+    
+    # 使用 reindex 確保所有縣市都出現（即使數量為 0），並轉回 DataFrame
+    stats_df = extracted_counts.reindex(target_cities, fill_value=0).reset_index()
+    stats_df.columns = ["City", "Count"]
 
+    # 繪圖邏輯維持不變
     font_name = CONFIG["settings"]["font_name"]
     plt.rcParams['font.sans-serif'] = [font_name, 'sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
@@ -84,7 +91,7 @@ def Statistics():
     print(f"[SUCCESS] 統計圖表已儲存至: {output_path}")
     plt.show()
 
-# 搜尋
+# 搜尋優化：保持鍊式過濾 (Chained Filtering)
 def Inquire(switch):
     if csv_file.empty:
         print("[ERROR] 目前無資料可搜尋。")
@@ -114,6 +121,7 @@ def Inquire(switch):
 
     print(f"[WAIT] 正在篩選資料...")
     
+    # 向量化過濾：Pandas 的布林索引本身就是向量化操作
     results = csv_file.copy()
     for col, key in filters.items():
         results = results[results[col].str.contains(key, na = False)]
