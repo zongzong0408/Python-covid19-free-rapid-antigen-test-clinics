@@ -1,163 +1,163 @@
 # -*- coding: utf-8 -*-
-from matplotlib.font_manager import FontProperties
+import json
+import os
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np 
-import pandas as pd
-import csv
 
-plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] 
-plt.rcParams['axes.unicode_minus'] = False
+CONFIG_PATH = "./config.json"
+CONFIG      = {}
+AREA_DATA   = {}
+csv_file    = pd.DataFrame()
 
-PATH = "./data.csv"
-csv_file = pd.read_csv(PATH)  
-
-area_data = {
-    '臺北市': ['中正區', '大同區', '中山區', '萬華區', '信義區', '松山區', '大安區', '南港區', '北投區', '內湖區', '士林區', '文山區'],
-    '新北市': ['板橋區', '新莊區', '泰山區', '林口區', '淡水區', '金山區', '八里區', '萬里區', '石門區', '三芝區', '瑞芳區', '汐止區', '平溪區', '貢寮區', '雙溪區', '深坑區', '石碇區', '新店區', '坪林區', '烏來區', '中和區', '永和區', '土城區', '三峽區', '樹林區', '鶯歌區', '三重區', '蘆洲區', '五股區'],
-    '基隆市': ['仁愛區', '中正區', '信義區', '中山區', '安樂區', '暖暖區', '七堵區'],
-    '桃園市': ['桃園區', '中壢區', '平鎮區', '八德區', '楊梅區', '蘆竹區', '龜山區', '龍潭區', '大溪區', '大園區', '觀音區', '新屋區', '復興區'],
-    '新竹縣': ['竹北市', '竹東鎮', '新埔鎮', '關西鎮', '峨眉鄉', '寶山鄉', '北埔鄉', '橫山鄉', '芎林鄉', '湖口鄉', '新豐鄉', '尖石鄉', '五峰鄉'],
-    '新竹市': ['東區', '北區', '香山區'],
-    '苗栗縣': ['苗栗市', '通霄鎮', '苑裡鎮', '竹南鎮', '頭份鎮', '後龍鎮', '卓蘭鎮', '西湖鄉', '頭屋鄉', '公館鄉', '銅鑼鄉', '三義鄉', '造橋鄉', '三灣鄉', '南庄鄉', '大湖鄉', '獅潭鄉', '泰安鄉'],
-    '臺中市': ['中區', '東區', '南區', '西區', '北區', '北屯區', '西屯區', '南屯區', '太平區', '大里區', '霧峰區', '烏日區', '豐原區', '后里區', '東勢區', '石岡區', '新社區', '和平區', '神岡區', '潭子區', '大雅區', '大肚區', '龍井區', '沙鹿區', '梧棲區', '清水區', '大甲區', '外埔區', '大安區'],
-    '南投縣': ['南投市', '埔里鎮', '草屯鎮', '竹山鎮', '集集鎮', '名間鄉', '鹿谷鄉', '中寮鄉', '魚池鄉', '國姓鄉', '水里鄉', '信義鄉', '仁愛鄉'],
-    '彰化縣': ['彰化市', '員林鎮', '和美鎮', '鹿港鎮', '溪湖鎮', '二林鎮', '田中鎮', '北斗鎮', '花壇鄉', '芬園鄉', '大村鄉', '永靖鄉', '伸港鄉', '線西鄉', '福興鄉', '秀水鄉', '埔心鄉', '埔鹽鄉', '大城鄉', '芳苑鄉', '竹塘鄉', '社頭鄉', '二水鄉', '田尾鄉', '埤頭鄉', '溪州鄉'],
-    '雲林縣': ['斗六市', '斗南鎮', '虎尾鎮', '西螺鎮', '土庫鎮', '北港鎮', '莿桐鄉', '林內鄉', '古坑鄉', '大埤鄉', '崙背鄉', '二崙鄉', '麥寮鄉', '臺西鄉', '東勢鄉', '褒忠鄉', '四湖鄉', '口湖鄉', '水林鄉', '元長鄉'],
-    '嘉義縣': ['太保市', '朴子市', '布袋鎮', '大林鎮', '民雄鄉', '溪口鄉', '新港鄉', '六腳鄉', '東石鄉', '義竹鄉', '鹿草鄉', '水上鄉', '中埔鄉', '竹崎鄉', '梅山鄉', '番路鄉', '大埔鄉', '阿里山鄉'],
-    '嘉義市': ['東區', '西區'],
-    '臺南市': ['中西區', '東區', '南區', '北區', '安平區', '安南區', '永康區', '歸仁區', '新化區', '左鎮區', '玉井區', '楠西區', '南化區', '仁德區', '關廟區', '龍崎區', '官田區', '麻豆區', '佳里區', '西港區', '七股區', '將軍區', '學甲區', '北門區', '新營區', '後壁區', '白河區', '東山區', '六甲區', '下營區', '柳營區', '鹽水區', '善化區', '大內區', '山上區', '新市區', '安定區'],
-    '高雄市': ['楠梓區', '左營區', '鼓山區', '三民區', '鹽埕區', '前金區', '新興區', '苓雅區', '前鎮區', '小港區', '旗津區', '鳳山區', '大寮區', '鳥松區', '林園區', '仁武區', '大樹區', '大社區', '岡山區', '路竹區', '橋頭區', '梓官區', '彌陀區', '永安區', '燕巢區', '田寮區', '阿蓮區', '茄萣區', '湖內區', '旗山區', '美濃區', '內門區', '杉林區', '甲仙區', '六龜區', '茂林區', '桃源區', '那瑪夏區'],
-    '屏東縣': ['屏東市', '潮州鎮', '東港鎮', '恆春鎮', '萬丹鄉', '長治鄉', '麟洛鄉', '九如鄉', '里港鄉', '鹽埔鄉', '高樹鄉', '萬巒鄉', '內埔鄉', '竹田鄉', '新埤鄉', '枋寮鄉', '新園鄉', '崁頂鄉', '林邊鄉', '南州鄉', '佳冬鄉', '琉球鄉', '車城鄉', '滿州鄉', '枋山鄉', '霧台鄉', '瑪家鄉', '泰武鄉', '來義鄉', '春日鄉', '獅子鄉', '牡丹鄉', '三地門鄉'],
-    '宜蘭縣': ['宜蘭市', '羅東鎮', '蘇澳鎮', '頭城鎮', '礁溪鄉', '壯圍鄉', '員山鄉', '冬山鄉', '五結鄉', '三星鄉', '大同鄉', '南澳鄉'],
-    '花蓮縣': ['花蓮市', '鳳林鎮', '玉里鎮', '新城鄉', '吉安鄉', '壽豐鄉', '秀林鄉', '光復鄉', '豐濱鄉', '瑞穗鄉', '萬榮鄉', '富里鄉', '卓溪鄉'],
-    '臺東縣': ['臺東市', '成功鎮', '關山鎮', '長濱鄉', '海端鄉', '池上鄉', '東河鄉', '鹿野鄉', '延平鄉', '卑南鄉', '金峰鄉', '大武鄉', '達仁鄉', '綠島鄉', '蘭嶼鄉', '太麻里鄉'],
-    '澎湖縣': ['馬公市', '湖西鄉', '白沙鄉', '西嶼鄉', '望安鄉', '七美鄉'],
-    '金門縣': ['金城鎮', '金湖鎮', '金沙鎮', '金寧鄉', '烈嶼鄉', '烏坵鄉'],
-    '連江縣': ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉']
-}
-
-def mode_choose():
-    print("(1) Check Clinic Analysis, (2) Inquire Clinic Information, (3) Exit")
-    choose1 = int(input("Which mode would you want to choose ? "))
-
-    if choose1 == 1:
-        Statistics()
-    elif choose1 == 2:
-        print("(1) one kind detail input & output, (2) multiple kind detail input & output")
-        choose2 = int(input("Which mode would you want to choose ? "))
-        if choose2 == 1:
-            Inquire(1)
-        elif choose2 == 2:
-            Inquire(2)
-        else:
-            print("Error Input!")
-            return -1
-    elif choose1 == 3:
-        return 3
-    else:
-        print("Error Input!")
-        return -1
-
-def Inquire(switch):
-    Keyword = {
-        "City"      : "NULL",
-        "Town"      : "NULL",
-        "Name"      : "NULL",
-        "Address"   : "NULL",
-        "Phone"     : "NULL",
-        "Long"      : "NULL",
-        "Lat"       : "NULL",
-    }
+def init():
+    global CONFIG, AREA_DATA, csv_file
     
-    if switch == 1:
-        times = 1 
-        for line in Keyword:
-            print(f"({times}) {line},", end=" ")
-            if times == 7:
-                print("(8) nothing more to say")
-            times += 1
+    print("[INFO] 正在初始化系統資源...")
+        
+    with open(CONFIG_PATH, "r", encoding = "utf-8") as file:
+        CONFIG = json.load(file)
+    
+    AREA_DATA = CONFIG.get("area_data", {})
+    data_path = CONFIG["settings"]["data_path"]
+    
+    csv_file = pd.read_csv(data_path, encoding = "utf-8")
+    print(f"[SUCCESS] 系統初始化完成，已載入: {data_path}")
 
-        print("* : Pls enter complete words!")
-        kind = input("What kind detail would you want to input ? ")
-        detail = input(f"Which {kind} ? ")
-
+def user_input(prompt, valid_options = None, input_type = int):
+    
+    while True:
+            
         try:
-            condition = csv_file[kind].str.contains(detail)
-            print(f"\nSearching Results : \n\n{csv_file[condition]}\n")
-        except:
-            print("Error Input!")
-    else:
-        kind = 0
-        while kind != 8:
-            times = 1 
-            for line in Keyword:
-                print(f"({times}) {line},", end=" ")
-                if times == 7:
-                    print("(8) nothing more to say")
-                times += 1
+            user_input = input_type(input(f"\n{prompt}"))
+            
+            if valid_options and user_input not in valid_options:
+                print(f"[ERROR] 請輸入範圍內的數字: {list(valid_options)}")
+                continue
+            
+            return user_input
+        
+        except ValueError:
+            print("[ERROR] 格式錯誤，請輸入數字。")
 
-            print("* : Pls enter number!")
-            kind = int(input("What kind detail would you want to input ? "))
-
-            if kind == 1:
-                Keyword["City"] = input("Which City ? ")
-            elif kind == 2:
-                Keyword["Town"] = input("Which Town ? ")
-            elif kind == 3:
-                Keyword["Name"] = input("Which Name ? ")
-            elif kind == 4:
-                Keyword["Address"] = input("Which Address ? ")
-            elif kind == 5:
-                Keyword["Phone"] = input("Which Phone ? ")
-            elif kind == 6:
-                Keyword["Long"] = input("Which Long ? ")
-            elif kind == 7:
-                Keyword["Lat"] = input("Which Lat ? ")
-
-    condition1 = pd.DataFrame()
-    condition2 = pd.DataFrame()
-    condition3 = pd.DataFrame()
-
-    for line in Keyword:
-        if Keyword[line] != "NULL":
-            if len(condition1) == 0:
-                condition1 = csv_file[line].str.contains(Keyword[line])
-            else:
-                condition2 = csv_file[line].str.contains(Keyword[line])
-                condition3 = condition1 & condition2
-                condition1 = condition3
-                del(condition2)
-                del(condition3)
-
-    if switch != 1:
-        print(f"\nSearching Results : \n\n{csv_file[condition1]}\n")
-    return 0
-
+# 畫圖
 def Statistics():
-    town_list = list(area_data.keys())
     
-    town_count = {
-        "Town"          : ['臺北市', '新北市', '基隆市', '桃園市', '新竹縣', '新竹市', '苗栗縣', '臺中市', '南投縣', '彰化縣', '雲林縣', '嘉義縣', '嘉義市', '臺南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣', '連江縣'],
-        "Clinic Count"  : [0] * 22
-    }
+    print("[WAIT] 正在計算各縣市診所配發數量...")
+    target_cities = list(AREA_DATA.keys())
 
-    statistics = pd.DataFrame(town_count)
+    summary = []
+    for city in target_cities:
+        count = csv_file[csv_file["City"].str.contains(city, na=False)].shape[0]
+        summary.append({"City": city, "Count": count})
     
-    for i, city in enumerate(town_list):
-        statistics.at[i, "Clinic Count"] = int(csv_file[csv_file["City"].str.contains(city)].shape[0])
+    stats_df = pd.DataFrame(summary)
 
-    chart = sns.barplot(x = "Town", y = "Clinic Count", data = statistics)
-    chart.set_title("中華民國縣市診所數量分布")
+    plt.rcParams['font.sans-serif'] = [CONFIG["settings"]["font_name"], 'sans-serif']
+    plt.rcParams['axes.unicode_minus'] = False
+    
+    sns.set_theme(style = "whitegrid", font = CONFIG["settings"]["font_name"])
+    plt.figure(figsize = (14, 7))
+    chart = sns.barplot(x = "City", y = "Count", data = stats_df, palette = "magma")
+    
+    for p in chart.patches:
+        chart.annotate(format(p.get_height(), '.0f'), 
+                       (p.get_x() + p.get_width() / 2., p.get_height()), 
+                       ha = 'center', va = 'center', xytext = (0, 9), 
+                       textcoords = 'offset points', fontsize = 10)
+
+    plt.title("中華民國各縣市公費快篩診所數量分布", fontsize = 18, fontweight = 'bold')
+    plt.xticks(rotation = 45)
+    plt.tight_layout()
+    
+    output_path = CONFIG["settings"]["output_fig"]
+    plt.savefig(output_path, dpi=300)
+    print(f"[SUCCESS] 統計圖表已儲存至: {output_path}")
     plt.show()
 
+# 搜尋
+def Inquire(switch):
+    
+    columns = ["City", "Town", "Name", "Address", "Phone", "Long", "Lat"]
+    filters = {}
+    
+    if switch == 1:
+        
+        print("\n[可搜尋欄位]: " + ", ".join([f"({i+1}){col}" for i, col in enumerate(columns)]))
+        
+        idx = user_input("請選擇搜尋欄位序號: ", range(1, 8))
+        target_col = columns[idx - 1]
+        keyword = input(f"請輸入 [{target_col}] 的關鍵字: ").strip()
+        
+        if keyword: 
+            filters[target_col] = keyword
+    
+    else:
+    
+        print("\n[INFO] 請逐一輸入過濾條件 (直接按 Enter 跳過)")
+    
+        for col in columns:
+            val = input(f"-> [{col}] 關鍵字: ").strip()
+            if val: 
+                filters[col] = val
+
+    if not filters:
+    
+        print("[INFO] 未輸入關鍵字，取消搜尋。")
+        return
+
+    print(f"[WAIT] 正在篩選資料...")
+    
+    condition1 = pd.Series(dtype = bool)
+    condition2 = pd.Series(dtype = bool)
+    condition3 = pd.Series(dtype = bool)
+
+    for col, key in filters.items():
+        if len(condition1) == 0:
+            condition1 = csv_file[col].str.contains(key, na = False)
+        else:
+            condition2 = csv_file[col].str.contains(key, na = False)
+            # 交集運算
+            condition3 = condition1 & condition2
+            condition1 = condition3
+            
+            # 刪除容器
+            del(condition2)
+            del(condition3)
+            condition2 = pd.Series(dtype=bool)
+            condition3 = pd.Series(dtype=bool)
+        
+    results = csv_file[condition1]
+    
+    if not results.empty:
+        print(f"[SUCCESS] 找到 {len(results)} 筆結果。")
+        print("-" * 30)
+        print(results.head(15)) 
+        print("-" * 30)
+    else:
+        print("[INFO] 搜尋結束，查無符合結果。")
+
 def main():
+    
+    init()
+
     while True:
-        choose = mode_choose()
-        if choose == 3:
+        
+        print("\n" + "="*35 + "\n   台灣診所資料分析系統 v2.0-beta\n" + "="*35)
+        print("(1) 顯示統計圖表\n(2) 搜尋診所資料\n(3) 退出程式")
+        mode = user_input("請選擇模式: ", [1, 2, 3])
+        
+        if mode == 1: 
+            Statistics()
+            
+        elif mode == 2:
+            sub = user_input("(1)單一搜尋 (2)多重搜尋: ", [1, 2])
+            Inquire(sub)
+        
+        elif mode == 3: 
             break
-    print("Program End")
-    return 0
+
+    print("\n[INFO] 程式正常結束，感謝使用！")
 
 if __name__ == "__main__":
     main()
